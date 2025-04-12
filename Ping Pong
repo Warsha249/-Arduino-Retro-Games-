@@ -1,0 +1,506 @@
+/*
+  -------------------------------
+  قناة "الورشة" - Arduino Retro Games
+  -------------------------------
+  
+  أهلاً بك في سلسلة الألعاب الكلاسيكية على قناة "الورشة"!  
+  في هذا المستودع، هتلاقي مجموعة من الألعاب القديمة التي تعتمد على أردوينو مثل:
+  - **الثعبان** (Snake)
+  - **تيترس** (Tetris)
+  - **بريك أوت** (Breakout)
+  - **سباق السيارات** (Car Racing)
+  - **بينج بونج** (Ping Pong)
+  - **غزو الفضاء** (Space Invaders)
+
+  الألعاب دي مبنية باستخدام مكونات بسيطة مثل:
+  - شاشة LED Matrix أو OLED.
+  - عصا تحكم أو أزرار.
+  - أردوينو Uno أو Nano.
+
+  القناة متخصصة في مشاريع إلكترونية مبتكرة وألعاب، وهي مصدرك للتعلم والتسلية معاً!
+  تقدر تتابع الفيديوهات في القناة عشان تعرف تفاصيل أكثر عن كل لعبة وكيفية تنفيذها.
+  
+  تابع القناة على يوتيوب:
+ https://www.youtube.com/@الورشة249
+
+
+  استمتع باللعب والتعلم! 🎮🔧
+*/
+
+
+#include <LedControl.h>
+
+LedControl lc = LedControl(12, 11, 10, 1); // DIN, CLK, CS, عدد المصفوفات
+
+int paddleX = 3;
+int ballX = 3, ballY = 5;
+int ballDX = 1, ballDY = -1;
+
+const int joyX = A0;
+const int buzzer = 8;
+
+bool bricks[3][8];
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+
+  pinMode(buzzer, OUTPUT);
+
+  // تجهيز الطوب
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      bricks[y][x] = true;
+}
+
+void loop() {
+  lc.clearDisplay(0);
+
+  // التحكم في المضرب
+  int xVal = analogRead(joyX);
+  if (xVal < 400 && paddleX > 0) paddleX--;
+  else if (xVal > 600 && paddleX < 5) paddleX++;
+
+  // تحديث الكرة
+  ballX += ballDX;
+  ballY += ballDY;
+
+  // ارتداد من الجوانب
+  if (ballX < 0 || ballX > 7) {
+    ballDX *= -1;
+    ballX += ballDX;
+  }
+
+  // ارتداد من السقف
+  if (ballY < 0) {
+    ballDY *= -1;
+    ballY += ballDY;
+  }
+
+  // اصطدام بالمضرب
+  if (ballY == 7 && (ballX >= paddleX && ballX <= paddleX + 2)) {
+    ballDY *= -1;
+    tone(buzzer, 800, 50);
+
+    if (ballX == paddleX) ballDX = -1;
+    else if (ballX == paddleX + 2) ballDX = 1;
+    // لو في النص يفضل نفس الاتجاه
+  }
+
+  // اصطدام بالطوب
+  if (ballY < 3 && bricks[ballY][ballX]) {
+    bricks[ballY][ballX] = false;
+    ballDY *= -1;
+    tone(buzzer, 1000, 50);
+  }
+
+  // التحقق من الفوز
+  if (allBricksBroken()) {
+    celebrateWin();
+    resetGame();
+    return;
+  }
+
+  // Game Over
+  if (ballY > 7) {
+    tone(buzzer, 200, 1000);
+    delay(1000);
+    resetGame();
+    return;
+  }
+
+  // عرض الطوب
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      if (bricks[y][x]) lc.setLed(0, y, x, true);
+
+  // عرض الكرة
+  lc.setLed(0, ballY, ballX, true);
+
+  // عرض المضرب
+  lc.setLed(0, 7, paddleX, true);
+  lc.setLed(0, 7, paddleX + 1, true);
+  lc.setLed(0, 7, paddleX + 2, true);
+
+  delay(200);
+}
+
+// إعادة ضبط اللعبة
+void resetGame() {
+  ballX = 3; ballY = 5;
+  ballDX = 1; ballDY = -1;
+  paddleX = 3;
+
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      bricks[y][x] = true;
+}
+
+// التحقق من فوز اللاعب
+bool allBricksBroken() {
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      if (bricks[y][x]) return false;
+  return true;
+}
+
+// احتفال الفوز 🎉
+void celebrateWin() {
+  for (int i = 0; i < 5; i++) {
+    lc.clearDisplay(0);
+    tone(buzzer, 1500, 100);
+    delay(150);
+
+    for (int y = 0; y < 8; y++)
+      for (int x = 0; x < 8; x++)
+        lc.setLed(0, y, x, true);
+
+    tone(buzzer, 1000, 100);
+    delay(150);
+  }
+
+  noTone(buzzer);
+  lc.clearDisplay(0);
+  delay(1000);
+}
+
+#include <LedControl.h>
+
+LedControl lc = LedControl(12, 11, 10, 1); // DIN, CLK, CS, عدد المصفوفات
+
+const int joyX = A0;
+const int buzzer = 8;
+
+int playerX = 3;
+unsigned long lastMoveTime = 0;
+int moveInterval = 500; // الزمن بين كل حركة للأعداء
+int score = 0;
+
+bool cars[8][8]; // تمثل العربيات
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+  pinMode(buzzer, OUTPUT);
+
+  resetGame();
+}
+
+void loop() {
+  lc.clearDisplay(0);
+
+  // تحريك اللاعب بالجويستيك
+  int xVal = analogRead(joyX);
+  if (xVal < 400 && playerX > 0) playerX--;
+  else if (xVal > 600 && playerX < 7) playerX++;
+
+  // تحديث العربيات كل فترة
+  if (millis() - lastMoveTime > moveInterval) {
+    moveCarsDown();
+    spawnCar();
+    lastMoveTime = millis();
+    score++;
+
+    // زيادة السرعة تدريجيا
+    if (score % 10 == 0 && moveInterval > 150)
+      moveInterval -= 20;
+  }
+
+  // عرض العربيات
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 8; x++)
+      if (cars[y][x]) lc.setLed(0, y, x, true);
+
+  // عرض السيارة
+  lc.setLed(0, 7, playerX, true);
+
+  // تحقق من التصادم
+  if (cars[7][playerX]) {
+    gameOver();
+    resetGame();
+    return;
+  }
+
+  delay(100);
+}
+
+void moveCarsDown() {
+  for (int y = 7; y > 0; y--)
+    for (int x = 0; x < 8; x++)
+      cars[y][x] = cars[y - 1][x];
+
+  // مسح الصف العلوي
+  for (int x = 0; x < 8; x++)
+    cars[0][x] = false;
+}
+
+void spawnCar() {
+  // نسبة ظهور عربية جديدة 40%
+  int chance = random(100);
+  if (chance < 40) {
+    int carPos = random(8);
+    cars[0][carPos] = true;
+  }
+}
+
+void resetGame() {
+  playerX = 3;
+  moveInterval = 500;
+  score = 0;
+
+  for (int y = 0; y < 8; y++)
+    for (int x = 0; x < 8; x++)
+      cars[y][x] = false;
+
+  lc.clearDisplay(0);
+}
+
+void gameOver() {
+  for (int i = 0; i < 3; i++) {
+    tone(buzzer, 200 + i * 200, 200);
+    lc.clearDisplay(0);
+    delay(200);
+    for (int y = 0; y < 8; y++)
+      for (int x = 0; x < 8; x++)
+        lc.setLed(0, y, x, true);
+    delay(200);
+  }
+  noTone(buzzer);
+  lc.clearDisplay(0);
+  delay(1000);
+}
+
+#include <LedControl.h>
+
+#define DIN 12
+#define CLK 11
+#define CS 10
+LedControl lc = LedControl(DIN, CLK, CS, 1);
+
+#define JOY_X A0
+#define JOY_Y A1
+#define JOY_BTN 2
+
+#define BUZZER 3
+#define POT_PIN A2
+
+// متغيرات اللعبة
+float paddle1Y = 3.0;
+float paddle2Y = 3.0;
+float ballX = 3.0;
+float ballY = 3.0;
+float ballSpeedX = 0.5;
+float ballSpeedY = 0.5;
+int playerScore = 0;
+int computerScore = 0;
+bool gameRunning = false;
+unsigned long lastUpdate = 0;
+int frameDelay = 50;
+
+// أشكال الأرقام
+const byte digits[10][8] = {
+  {B00111100,B01000010,B01000010,B01000010,B01000010,B01000010,B01000010,B00111100},
+  {B00011000,B00111000,B00011000,B00011000,B00011000,B00011000,B00011000,B01111110},
+  {B00111100,B01000010,B00000110,B00011100,B00110000,B01100000,B01000000,B01111110},
+  {B00111100,B01000010,B00000010,B00011100,B00000010,B00000010,B01000010,B00111100},
+  {B00000100,B00001100,B00010100,B00100100,B01000100,B01111110,B00000100,B00000100},
+  {B01111110,B01000000,B01000000,B01111100,B00000010,B00000010,B01000010,B00111100},
+  {B00111100,B01000000,B01000000,B01111100,B01000010,B01000010,B01000010,B00111100},
+  {B01111110,B00000010,B00000100,B00001000,B00010000,B00100000,B01000000,B01000000},
+  {B00111100,B01000010,B01000010,B00111100,B01000010,B01000010,B01000010,B00111100},
+  {B00111100,B01000010,B01000010,B01000010,B00111110,B00000010,B00000010,B00111100}
+};
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+
+  pinMode(JOY_BTN, INPUT_PULLUP);
+  pinMode(BUZZER, OUTPUT);
+  pinMode(POT_PIN, INPUT);
+
+  randomSeed(analogRead(5));
+  showStartScreen();
+}
+
+void loop() {
+  if (!gameRunning) {
+    if (digitalRead(JOY_BTN) == LOW) {
+      gameRunning = true;
+      resetBall();
+      tone(BUZZER, 784, 100);
+      delay(200);
+    }
+    return;
+  }
+
+  frameDelay = map(analogRead(POT_PIN), 0, 1023, 20, 100);
+
+  if (millis() - lastUpdate > frameDelay) {
+    updateGame();
+    lastUpdate = millis();
+  }
+
+  updateDisplay();
+}
+
+void showStartScreen() {
+  byte pongMsg[8] = {
+    B01111111, B01001001, B01001001, B01001001,
+    B00000000, B00011000, B00011000, B00000000
+  };
+
+  for (int i = 0; i < 8; i++) {
+    lc.setRow(0, i, pongMsg[i]);
+  }
+}
+
+void resetGame() {
+  playerScore = 0;
+  computerScore = 0;
+  paddle1Y = 3.0;
+  paddle2Y = 3.0;
+  gameRunning = false;
+  showStartScreen();
+}
+
+void resetBall() {
+  ballX = 3.0;
+  ballY = random(1, 7);
+  ballSpeedX = (random(0, 2) ? 0.5 : -0.5);
+  ballSpeedY = (random(0, 2) ? 0.3 : -0.3);
+}
+
+void updateGame() {
+  int yValue = analogRead(JOY_Y);
+  if (yValue < 400 && paddle1Y > 0.5) paddle1Y -= 0.5;
+  if (yValue > 600 && paddle1Y < 5.5) paddle1Y += 0.5;
+
+  // تحسين ذكاء الكمبيوتر
+  static unsigned long lastAIUpdate = 0;
+  if (millis() - lastAIUpdate > 100) {
+    lastAIUpdate = millis();
+    float error = random(-10, 10) / 20.0;
+    float target = ballY + error;
+
+    if (paddle2Y + 1.0 < target && paddle2Y < 5.5) paddle2Y += 0.4;
+    if (paddle2Y + 1.0 > target && paddle2Y > 0.5) paddle2Y -= 0.4;
+  }
+
+  ballX += ballSpeedX;
+  ballY += ballSpeedY;
+
+  if (ballY <= 0.5 || ballY >= 6.5) {
+    ballSpeedY *= -1;
+    tone(BUZZER, 440, 50);
+  }
+
+  if (ballX <= 1.5 && ballX >= 0.5 && ballY >= paddle1Y && ballY <= paddle1Y + 2.0) {
+    ballSpeedX = abs(ballSpeedX) * 1.1;
+    float hitPos = ballY - paddle1Y;
+    ballSpeedY = (hitPos - 1.0) * 0.7;
+    tone(BUZZER, 880, 50);
+  }
+
+  if (ballX >= 5.5 && ballX <= 6.5 && ballY >= paddle2Y && ballY <= paddle2Y + 2.0) {
+    ballSpeedX = -abs(ballSpeedX) * 1.1;
+    float hitPos = ballY - paddle2Y;
+    ballSpeedY = (hitPos - 1.0) * 0.7;
+    tone(BUZZER, 660, 50);
+  }
+
+  if (ballX < 0) {
+    computerScore++;
+    resetBall();
+    tone(BUZZER, 220, 300);
+    gameRunning = false;
+    showScore();
+  }
+  if (ballX > 7) {
+    playerScore++;
+    resetBall();
+    tone(BUZZER, 784, 300);
+    gameRunning = false;
+    showScore();
+  }
+
+  if (playerScore >= 5 || computerScore >= 5) {
+    gameOver();
+  }
+}
+
+void updateDisplay() {
+  lc.clearDisplay(0);
+  for (int i = 0; i < 3; i++) {
+    lc.setLed(0, 0, (int)(paddle1Y + i), true);
+    lc.setLed(0, 7, (int)(paddle2Y + i), true);
+  }
+  lc.setLed(0, (int)ballX, (int)ballY, true);
+}
+
+void showScore() {
+  lc.clearDisplay(0);
+  for (int row = 0; row < 8; row++) {
+    lc.setRow(0, row, digits[playerScore][row]);
+  }
+  delay(1500);
+
+  lc.clearDisplay(0);
+  for (int row = 0; row < 8; row++) {
+    lc.setRow(0, row, digits[computerScore][row]);
+  }
+  delay(1500);
+
+  lc.clearDisplay(0);
+  if (!(playerScore >= 5 || computerScore >= 5)) {
+    showStartScreen();
+  }
+}
+
+void gameOver() {
+  tone(BUZZER, 392, 200);
+  delay(200);
+  tone(BUZZER, 330, 200);
+  delay(200);
+  tone(BUZZER, 262, 400);
+  showFinalResult();
+
+  while (digitalRead(JOY_BTN) == HIGH) {
+    delay(100);
+  }
+
+  resetGame();
+}
+
+void showFinalResult() {
+  lc.clearDisplay(0);
+
+  byte P[] = {B01111110,B01000010,B01000010,B01111110,B01000000,B01000000,B01000000,B01000000};
+  for (int i = 0; i < 8; i++) lc.setRow(0, i, P[i]);
+  delay(1000);
+
+  for (int row = 0; row < 8; row++) lc.setRow(0, row, digits[playerScore][row]);
+  delay(1500);
+
+  lc.clearDisplay(0);
+
+  byte C[] = {B00111100,B01000010,B01000000,B01000000,B01000000,B01000000,B01000010,B00111100};
+  for (int i = 0; i < 8; i++) lc.setRow(0, i, C[i]);
+  delay(1000);
+
+  for (int row = 0; row < 8; row++) lc.setRow(0, row, digits[computerScore][row]);
+  delay(1500);
+
+  lc.clearDisplay(0);
+  if (playerScore > computerScore) {
+    byte W[] = {B01000010,B01000010,B01000010,B01000010,B01011010,B01100110,B01000010,B01000010};
+    for (int i = 0; i < 8; i++) lc.setRow(0, i, W[i]);
+  } else {
+    byte L[] = {B01000000,B01000000,B01000000,B01000000,B01000000,B01000000,B01000000,B01111110};
+    for (int i = 0; i < 8; i++) lc.setRow(0, i, L[i]);
+  }
+  delay(2000);
+}
