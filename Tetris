@@ -1,0 +1,371 @@
+/*
+  -------------------------------
+  قناة "الورشة" - Arduino Retro Games
+  -------------------------------
+  
+  أهلاً بك في سلسلة الألعاب الكلاسيكية على قناة "الورشة"!  
+  في هذا المستودع، هتلاقي مجموعة من الألعاب القديمة التي تعتمد على أردوينو مثل:
+  - **الثعبان** (Snake)
+  - **تيترس** (Tetris)
+  - **بريك أوت** (Breakout)
+  - **سباق السيارات** (Car Racing)
+  - **بينج بونج** (Ping Pong)
+  - **غزو الفضاء** (Space Invaders)
+
+  الألعاب دي مبنية باستخدام مكونات بسيطة مثل:
+  - شاشة LED Matrix أو OLED.
+  - عصا تحكم أو أزرار.
+  - أردوينو Uno أو Nano.
+
+  القناة متخصصة في مشاريع إلكترونية مبتكرة وألعاب، وهي مصدرك للتعلم والتسلية معاً!
+  تقدر تتابع الفيديوهات في القناة عشان تعرف تفاصيل أكثر عن كل لعبة وكيفية تنفيذها.
+  
+  تابع القناة على يوتيوب:
+ https://www.youtube.com/@الورشة249
+
+
+  استمتع باللعب والتعلم! 🎮🔧
+*/
+
+#include <LedControl.h>
+
+// تعريف الدبابيس
+#define DIN_PIN 12
+#define CLK_PIN 11
+#define CS_PIN 10
+#define BUZZER_PIN 3
+#define JOYSTICK_X_PIN A0
+#define JOYSTICK_Y_PIN A1
+#define JOYSTICK_SW_PIN 2
+
+LedControl lc = LedControl(DIN_PIN, CLK_PIN, CS_PIN, 1);
+
+// تعريف النغمات الموسيقية
+#define NOTE_B2  123
+#define NOTE_C3  131
+#define NOTE_G3  196
+#define NOTE_C4  262
+#define NOTE_D4  294
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_G4  392
+#define NOTE_A4  440
+#define NOTE_B4  494
+#define NOTE_C5  523
+
+// تعريفات الدوال المسبقة
+void newPiece();
+void drawGrid();
+void readInput();
+bool checkCollision(int xOffset, int yOffset);
+void moveDown();
+void moveLeft();
+void moveRight();
+void rotatePiece();
+void lockPiece();
+void clearLines();
+void checkTopOut();
+void gameOver();
+void resetGame();
+void playPieceSpawnSound();
+void playLineClearSound();
+void playMoveSound();
+void playGameOverSound();
+void showGameOverAnimation();
+void showRotationAnimation();
+
+// متغيرات اللعبة
+byte grid[8] = {0};
+int currentPiece[4][2];
+int pieceType, rotation = 0;
+unsigned long lastDrop, lastInput;
+int dropSpeed = 800;
+int score = 0;
+bool gameActive = true;
+
+// أشكال القطع مع جميع حالات الدوران
+const byte pieces[7][4][4][4] = {
+  { // I
+    {{1,1,1,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}},
+    {{0,0,1,0}, {0,0,1,0}, {0,0,1,0}, {0,0,1,0}},
+    {{1,1,1,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}},
+    {{0,0,1,0}, {0,0,1,0}, {0,0,1,0}, {0,0,1,0}}
+  },
+  { // J
+    {{1,0,0,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0}},
+    {{0,1,1,0}, {0,1,0,0}, {0,1,0,0}, {0,0,0,0}},
+    {{0,0,0,0}, {1,1,1,0}, {0,0,1,0}, {0,0,0,0}},
+    {{0,1,0,0}, {0,1,0,0}, {1,1,0,0}, {0,0,0,0}}
+  },
+  // ... (أكمل بقية القطع بنفس الطريقة)
+};
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+  pinMode(JOYSTICK_SW_PIN, INPUT_PULLUP);
+  randomSeed(analogRead(A2));
+  resetGame();
+}
+
+void loop() {
+  if(!gameActive) {
+    if(digitalRead(JOYSTICK_SW_PIN) == LOW) {
+      resetGame();
+    }
+    return;
+  }
+
+  if(millis() - lastDrop > dropSpeed) {
+    moveDown();
+    lastDrop = millis();
+  }
+  
+  if(millis() - lastInput > 100) { // تأخير 100ms للتحكم
+    readInput();
+    lastInput = millis();
+  }
+  
+  drawGrid();
+}
+
+// ============== نظام الأصوات ==============
+void playPieceSpawnSound() {
+  tone(BUZZER_PIN, NOTE_E4, 150);
+  delay(175);
+  tone(BUZZER_PIN, NOTE_G4, 150);
+  delay(175);
+  tone(BUZZER_PIN, NOTE_C5, 300);
+  delay(350);
+  noTone(BUZZER_PIN);
+}
+
+void playLineClearSound() {
+  tone(BUZZER_PIN, NOTE_C5, 100);
+  delay(120);
+  tone(BUZZER_PIN, NOTE_G4, 100);
+  delay(120);
+  tone(BUZZER_PIN, NOTE_E4, 100);
+  delay(120);
+  tone(BUZZER_PIN, NOTE_G4, 100);
+  delay(120);
+  tone(BUZZER_PIN, NOTE_C5, 200);
+  delay(240);
+  noTone(BUZZER_PIN);
+}
+
+void playMoveSound() {
+  tone(BUZZER_PIN, NOTE_G4, 50);
+  delay(60);
+  noTone(BUZZER_PIN);
+}
+
+void playGameOverSound() {
+  tone(BUZZER_PIN, NOTE_C4, 300);
+  delay(350);
+  tone(BUZZER_PIN, NOTE_G3, 300);
+  delay(350);
+  tone(BUZZER_PIN, NOTE_C3, 300);
+  delay(350);
+  tone(BUZZER_PIN, NOTE_B2, 500);
+  delay(600);
+  noTone(BUZZER_PIN);
+}
+
+// ============== تأثيرات بصرية ==============
+void showGameOverAnimation() {
+  for (int i = 0; i < 5; i++) {
+    for (int y = 7; y >= 0; y--) {
+      if (i % 2 == 0) {
+        lc.setRow(0, y, grid[y]);
+      } else {
+        lc.setRow(0, y, 0);
+      }
+    }
+    playGameOverSound();
+    delay(300);
+  }
+  
+  byte gameOverIcon[8] = {
+    B00000000,
+    B01100110,
+    B01100110,
+    B00000000,
+    B01000010,
+    B00100100,
+    B00011000,
+    B00000000
+  };
+  
+  for (int i = 0; i < 8; i++) {
+    lc.setRow(0, i, gameOverIcon[i]);
+  }
+}
+
+void showRotationAnimation() {
+  for(int i=0; i<2; i++) {
+    lc.clearDisplay(0);
+    delay(50);
+    drawGrid();
+    delay(50);
+  }
+}
+
+// ============== دوال اللعبة الأساسية ==============
+void resetGame() {
+  memset(grid, 0, 8);
+  score = 0;
+  gameActive = true;
+  newPiece();
+  lastDrop = millis();
+  lastInput = millis();
+}
+
+void newPiece() {
+  pieceType = random(7);
+  rotation = 0;
+  for(int i=0; i<4; i++) {
+    currentPiece[i][0] = 3 + pieces[pieceType][rotation][i][0];
+    currentPiece[i][1] = pieces[pieceType][rotation][i][1];
+  }
+  playPieceSpawnSound();
+}
+
+void drawGrid() {
+  byte displayGrid[8];
+  memcpy(displayGrid, grid, 8);
+  
+  for(int i=0; i<4; i++) {
+    int x = currentPiece[i][0];
+    int y = currentPiece[i][1];
+    if(y >=0 && y <8) bitSet(displayGrid[y], 7-x);
+  }
+  
+  for(int i=0; i<8; i++) {
+    lc.setRow(0, i, displayGrid[i]);
+  }
+}
+
+void readInput() {
+  int xVal = analogRead(JOYSTICK_X_PIN);
+  
+  if(xVal < 300) {
+    moveLeft();
+  } else if(xVal > 700) {
+    moveRight();
+  }
+  
+  if(digitalRead(JOYSTICK_SW_PIN) == LOW) {
+    rotatePiece();
+    delay(200); // منع الارتداد
+  }
+}
+
+bool checkCollision(int xOffset, int yOffset) {
+  for(int i=0; i<4; i++) {
+    int newX = currentPiece[i][0] + xOffset;
+    int newY = currentPiece[i][1] + yOffset;
+    if(newX <0 || newX >7 || newY >7 || (newY >=0 && bitRead(grid[newY], 7-newX))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void moveDown() {
+  if(!checkCollision(0, 1)) {
+    for(int i=0; i<4; i++) currentPiece[i][1]++;
+  } else {
+    lockPiece();
+    clearLines();
+    checkTopOut();
+    if(gameActive) newPiece();
+  }
+}
+
+void moveLeft() {
+  if(!checkCollision(-1, 0)) {
+    for(int i=0; i<4; i++) currentPiece[i][0]--;
+    playMoveSound();
+  }
+}
+
+void moveRight() {
+  if(!checkCollision(1, 0)) {
+    for(int i=0; i<4; i++) currentPiece[i][0]++;
+    playMoveSound();
+  }
+}
+
+void rotatePiece() {
+  int newRotation = (rotation + 1) % 4;
+  int backup[4][2];
+  
+  // حفظ الحالة الحالية
+  for(int i=0; i<4; i++) {
+    backup[i][0] = currentPiece[i][0];
+    backup[i][1] = currentPiece[i][1];
+  }
+  
+  // تطبيق الدوران الجديد
+  for(int i=0; i<4; i++) {
+    currentPiece[i][0] = 3 + pieces[pieceType][newRotation][i][0];
+    currentPiece[i][1] = pieces[pieceType][newRotation][i][1];
+  }
+  
+  if(!checkCollision(0, 0)) {
+    rotation = newRotation;
+    showRotationAnimation();
+    tone(BUZZER_PIN, NOTE_A4, 100);
+  } else {
+    // استعادة الحالة السابقة إذا كان هناك تصادم
+    for(int i=0; i<4; i++) {
+      currentPiece[i][0] = backup[i][0];
+      currentPiece[i][1] = backup[i][1];
+    }
+  }
+}
+
+void lockPiece() {
+  for(int i=0; i<4; i++) {
+    int x = currentPiece[i][0];
+    int y = currentPiece[i][1];
+    if(y >=0) bitSet(grid[y], 7-x);
+  }
+}
+
+void clearLines() {
+  int linesCleared = 0;
+  for(int y=0; y<8; y++) {
+    if(grid[y] == B11111111) {
+      for(int yy=y; yy>0; yy--) grid[yy] = grid[yy-1];
+      grid[0] = 0;
+      linesCleared++;
+      score += 100;
+    }
+  }
+  if(linesCleared > 0) {
+    playLineClearSound();
+    for(int i=0; i<3; i++) {
+      lc.clearDisplay(0);
+      delay(100);
+      drawGrid();
+      delay(100);
+    }
+  }
+}
+
+void checkTopOut() {
+  for(int x=0; x<8; x++) {
+    if(bitRead(grid[0], 7-x)) {
+      gameOver();
+      break;
+    }
+  }
+}
+
+void gameOver() {
+  gameActive = false;
+  showGameOverAnimation();
+}
