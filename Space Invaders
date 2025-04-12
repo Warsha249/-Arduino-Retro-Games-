@@ -1,0 +1,422 @@
+/*
+  -------------------------------
+  قناة "الورشة" - Arduino Retro Games
+  -------------------------------
+  
+  أهلاً بك في سلسلة الألعاب الكلاسيكية على قناة "الورشة"!  
+  في هذا المستودع، هتلاقي مجموعة من الألعاب القديمة التي تعتمد على أردوينو مثل:
+  - **الثعبان** (Snake)
+  - **تيترس** (Tetris)
+  - **بريك أوت** (Breakout)
+  - **سباق السيارات** (Car Racing)
+  - **بينج بونج** (Ping Pong)
+  - **غزو الفضاء** (Space Invaders)
+
+  الألعاب دي مبنية باستخدام مكونات بسيطة مثل:
+  - شاشة LED Matrix أو OLED.
+  - عصا تحكم أو أزرار.
+  - أردوينو Uno أو Nano.
+
+  القناة متخصصة في مشاريع إلكترونية مبتكرة وألعاب، وهي مصدرك للتعلم والتسلية معاً!
+  تقدر تتابع الفيديوهات في القناة عشان تعرف تفاصيل أكثر عن كل لعبة وكيفية تنفيذها.
+  
+  تابع القناة على يوتيوب:
+ https://www.youtube.com/@الورشة249
+
+
+  استمتع باللعب والتعلم! 🎮🔧
+*/
+
+
+#include <LedControl.h>
+
+LedControl lc = LedControl(12, 11, 10, 1); // DIN, CLK, CS, عدد المصفوفات
+
+int paddleX = 3;
+int ballX = 3, ballY = 5;
+int ballDX = 1, ballDY = -1;
+
+const int joyX = A0;
+const int buzzer = 8;
+
+bool bricks[3][8];
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+
+  pinMode(buzzer, OUTPUT);
+
+  // تجهيز الطوب
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      bricks[y][x] = true;
+}
+
+void loop() {
+  lc.clearDisplay(0);
+
+  // التحكم في المضرب
+  int xVal = analogRead(joyX);
+  if (xVal < 400 && paddleX > 0) paddleX--;
+  else if (xVal > 600 && paddleX < 5) paddleX++;
+
+  // تحديث الكرة
+  ballX += ballDX;
+  ballY += ballDY;
+
+  // ارتداد من الجوانب
+  if (ballX < 0 || ballX > 7) {
+    ballDX *= -1;
+    ballX += ballDX;
+  }
+
+  // ارتداد من السقف
+  if (ballY < 0) {
+    ballDY *= -1;
+    ballY += ballDY;
+  }
+
+  // اصطدام بالمضرب
+  if (ballY == 7 && (ballX >= paddleX && ballX <= paddleX + 2)) {
+    ballDY *= -1;
+    tone(buzzer, 800, 50);
+
+    if (ballX == paddleX) ballDX = -1;
+    else if (ballX == paddleX + 2) ballDX = 1;
+    // لو في النص يفضل نفس الاتجاه
+  }
+
+  // اصطدام بالطوب
+  if (ballY < 3 && bricks[ballY][ballX]) {
+    bricks[ballY][ballX] = false;
+    ballDY *= -1;
+    tone(buzzer, 1000, 50);
+  }
+
+  // التحقق من الفوز
+  if (allBricksBroken()) {
+    celebrateWin();
+    resetGame();
+    return;
+  }
+
+  // Game Over
+  if (ballY > 7) {
+    tone(buzzer, 200, 1000);
+    delay(1000);
+    resetGame();
+    return;
+  }
+
+  // عرض الطوب
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      if (bricks[y][x]) lc.setLed(0, y, x, true);
+
+  // عرض الكرة
+  lc.setLed(0, ballY, ballX, true);
+
+  // عرض المضرب
+  lc.setLed(0, 7, paddleX, true);
+  lc.setLed(0, 7, paddleX + 1, true);
+  lc.setLed(0, 7, paddleX + 2, true);
+
+  delay(200);
+}
+
+// إعادة ضبط اللعبة
+void resetGame() {
+  ballX = 3; ballY = 5;
+  ballDX = 1; ballDY = -1;
+  paddleX = 3;
+
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      bricks[y][x] = true;
+}
+
+// التحقق من فوز اللاعب
+bool allBricksBroken() {
+  for (int y = 0; y < 3; y++)
+    for (int x = 0; x < 8; x++)
+      if (bricks[y][x]) return false;
+  return true;
+}
+
+// احتفال الفوز 🎉
+void celebrateWin() {
+  for (int i = 0; i < 5; i++) {
+    lc.clearDisplay(0);
+    tone(buzzer, 1500, 100);
+    delay(150);
+
+    for (int y = 0; y < 8; y++)
+      for (int x = 0; x < 8; x++)
+        lc.setLed(0, y, x, true);
+
+    tone(buzzer, 1000, 100);
+    delay(150);
+  }
+
+  noTone(buzzer);
+  lc.clearDisplay(0);
+  delay(1000);
+}
+
+#include <LedControl.h>
+
+#define DIN 12
+#define CLK 11
+#define CS 10
+LedControl lc = LedControl(DIN, CLK, CS, 1);
+
+#define JOY_X A0
+#define JOY_Y A1
+#define JOY_BTN 2
+
+#define BUZZER 3
+
+// متغيرات اللعبة المعدلة
+byte invaders[8] = {0};
+byte playerPos = 3;
+bool laserActive = false;
+byte laserHeight = 0;
+unsigned long lastMoveTime = 0;
+unsigned long lastInvaderMoveTime = 0;
+unsigned long lastSpawnTime = 0;
+int score = 0;
+bool gameOver = false;
+byte currentInvaders = 1; // يبدأ بعدد قليل من الأعداء
+byte maxInvaders = 5;     // الحد الأقصى للأعداء
+byte level = 1;
+const int maxLevel = 5;
+
+// إعدادات السرعة
+const int playerMoveDelay = 200;
+const int laserMoveDelay = 100;
+int invaderMoveDelay = 1000; // يقل مع تقدم المستويات
+const int invaderSpawnDelay = 2000;
+
+// رسالة GAME OVER
+const byte gameOverMsg[8] = {
+  B01111110, // G
+  B01000010,
+  B01000010,
+  B01111110,
+  B01001010, // M
+  B01000110,
+  B01000010,
+  B01000010
+};
+
+// أشكال الأرقام
+const byte digits[10][8] = {
+  {B00111100,B01000010,B01000010,B01000010,B01000010,B01000010,B01000010,B00111100}, // 0
+  {B00011000,B00111000,B00011000,B00011000,B00011000,B00011000,B00011000,B01111110}, // 1
+  {B00111100,B01000010,B00000110,B00011100,B00110000,B01100000,B01000000,B01111110}, // 2
+  {B00111100,B01000010,B00000010,B00011100,B00000010,B00000010,B01000010,B00111100}, // 3
+  {B00000100,B00001100,B00010100,B00100100,B01000100,B01111110,B00000100,B00000100}, // 4
+  {B01111110,B01000000,B01000000,B01111100,B00000010,B00000010,B01000010,B00111100}, // 5
+  {B00111100,B01000000,B01000000,B01111100,B01000010,B01000010,B01000010,B00111100}, // 6
+  {B01111110,B00000010,B00000100,B00001000,B00010000,B00100000,B01000000,B01000000}, // 7
+  {B00111100,B01000010,B01000010,B00111100,B01000010,B01000010,B01000010,B00111100}, // 8
+  {B00111100,B01000010,B01000010,B01000010,B00111110,B00000010,B00000010,B00111100}  // 9
+};
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+  
+  pinMode(JOY_BTN, INPUT_PULLUP);
+  pinMode(BUZZER, OUTPUT);
+
+  randomSeed(analogRead(5));
+  startGame();
+}
+
+void startGame() {
+  for(int i=0; i<8; i++) invaders[i] = 0;
+  
+  playerPos = 3;
+  laserActive = false;
+  score = 0;
+  gameOver = false;
+  currentInvaders = 1;
+  level = 1;
+  invaderMoveDelay = 1000;
+  
+  tone(BUZZER, 523, 200);
+  delay(200);
+  tone(BUZZER, 659, 200);
+  delay(200);
+  tone(BUZZER, 784, 200);
+  
+  updateDisplay();
+}
+
+void loop() {
+  if (gameOver) {
+    showGameOver();
+    if (digitalRead(JOY_BTN) == LOW) {
+      startGame();
+    }
+    return;
+  }
+
+  unsigned long currentTime = millis();
+
+  if (currentTime - lastMoveTime > playerMoveDelay) {
+    handleJoystick();
+    lastMoveTime = currentTime;
+  }
+
+  if (laserActive && currentTime - lastMoveTime > laserMoveDelay) {
+    updateLaser();
+  }
+
+  if (currentTime - lastInvaderMoveTime > invaderMoveDelay) {
+    moveInvaders();
+    lastInvaderMoveTime = currentTime;
+  }
+
+  if (currentTime - lastSpawnTime > invaderSpawnDelay) {
+    spawnInvaders();
+    lastSpawnTime = currentTime;
+  }
+
+  updateDisplay();
+}
+
+void handleJoystick() {
+  int xValue = analogRead(JOY_X);
+  
+  if (xValue < 400 && playerPos > 0) playerPos--;
+  else if (xValue > 600 && playerPos < 7) playerPos++;
+  
+  if (digitalRead(JOY_BTN) == LOW && !laserActive) {
+    laserActive = true;
+    laserHeight = 6;
+    tone(BUZZER, 349, 100);
+  }
+}
+
+void updateLaser() {
+  laserHeight--;
+  
+  if (laserHeight == 0) {
+    laserActive = false;
+  } else {
+    if (invaders[laserHeight] & (1 << (7 - playerPos))) {
+      invaders[laserHeight] &= ~(1 << (7 - playerPos));
+      laserActive = false;
+      score += 10;
+      currentInvaders--;
+      tone(BUZZER, 698, 100);
+      
+      if (currentInvaders == 0) {
+        levelUp();
+      }
+    }
+  }
+}
+
+void moveInvaders() {
+  for (int i = 7; i > 0; i--) {
+    invaders[i] = invaders[i-1];
+  }
+  invaders[0] = 0;
+
+  if (invaders[7] != 0) {
+    gameOver = true;
+    playGameOverSound();
+  }
+}
+
+void spawnInvaders() {
+  if (currentInvaders < maxInvaders && random(100) < 30 + level*10) {
+    byte newInvader = 1 << random(8);
+    invaders[0] |= newInvader;
+    currentInvaders++;
+  }
+}
+
+void levelUp() {
+  level++;
+  if (level > maxLevel) level = maxLevel;
+  
+  invaderMoveDelay = max(500, 1000 - (level-1)*150); // زيادة السرعة مع كل مستوى
+  maxInvaders = min(5, 1 + level); // زيادة العدد حتى 5
+  
+  tone(BUZZER, 784, 200);
+  delay(200);
+  tone(BUZZER, 880, 400);
+}
+
+void updateDisplay() {
+  if (gameOver) return;
+  
+  lc.clearDisplay(0);
+  
+  for (int row = 0; row < 8; row++) {
+    lc.setRow(0, row, invaders[row]);
+  }
+  
+  lc.setLed(0, 7, playerPos, true);
+  
+  if (laserActive) {
+    for (int row = laserHeight; row < 7; row++) {
+      lc.setLed(0, row, playerPos, true);
+    }
+  }
+}
+
+void showGameOver() {
+  // عرض رسالة GAME OVER
+  for (int row = 0; row < 8; row++) {
+    lc.setRow(0, row, gameOverMsg[row]);
+  }
+  delay(2000);
+  
+  // عرض النتيجة
+  displayScore();
+  delay(1000);
+  
+  // انتظار الضغط على الزر
+  while(digitalRead(JOY_BTN) == HIGH) {
+    delay(100);
+  }
+}
+
+void displayScore() {
+  lc.clearDisplay(0);
+  
+  // تحويل النقاط إلى سلسلة
+  String scoreStr = String(score);
+  
+  // عرض كل رقم على حدة
+  for (int i = 0; i < scoreStr.length(); i++) {
+    char c = scoreStr.charAt(i);
+    int digit = c - '0';
+    
+    if (digit >= 0 && digit <= 9) {
+      for (int row = 0; row < 8; row++) {
+        lc.setRow(0, row, digits[digit][row]);
+      }
+    }
+    
+    delay(800);
+    lc.clearDisplay(0);
+    delay(200);
+  }
+}
+
+void playGameOverSound() {
+  tone(BUZZER, 220, 300);
+  delay(300);
+  tone(BUZZER, 196, 300);
+  delay(300);
+  tone(BUZZER, 175, 500);
+}
