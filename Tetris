@@ -14,8 +14,8 @@
 #include <LedControl.h>
 
 // تعريف الدبابيس
-#define DIN_PIN 12
-#define CLK_PIN 11
+#define DIN_PIN 11
+#define CLK_PIN 13
 #define CS_PIN 10
 #define BUZZER_PIN 3
 #define JOYSTICK_X_PIN A0
