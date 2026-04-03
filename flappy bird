@@ -17,7 +17,7 @@ const int CLK = 13;
 LedControl lc = LedControl(DIN, CLK, CS, 1);
 
 const int joystickY = A1;
-const int buzzerPin = 3;
+const int buzzerPin = 2;
 
 int birdY = 3;
 int pipeX = 7;
@@ -50,36 +50,39 @@ void loop() {
     lastMove = millis();
     lc.clearDisplay(0);
 
+    // تحريك الأنبوب
     pipeX--;
     if (pipeX < 0) {
       pipeX = 7;
       gapY = random(1, 6);
     }
 
+    // قراءة الجويستيك
     int joyVal = analogRead(joystickY);
     if (joyVal < 400 && birdY > 0) {
       birdY--;
-      tone(buzzerPin, 1000, 50); ن
+      tone(buzzerPin, 1000, 50); // صوت الطيران
     } else if (joyVal > 600 && birdY < 7) {
       birdY++;
     }
 
-    
+    // جاذبية (الطائر يقع)
     else if (random(0, 10) > 7 && birdY < 7) {
       birdY++;
     }
 
-    
+    // رسم الأنبوب
     for (int y = 0; y < 8; y++) {
       if (y < gapY || y > gapY + 1) {
         lc.setLed(0, y, pipeX, true);
       }
     }
 
-  
+    // رسم الطائر
     lc.setLed(0, birdY, 1, true);
 
-      if (pipeX == 1 && (birdY < gapY || birdY > gapY + 1)) {
+    // التحقق من التصادم
+    if (pipeX == 1 && (birdY < gapY || birdY > gapY + 1)) {
       gameOver = true;
     }
   }
