@@ -20,7 +20,7 @@ int ballX = 3, ballY = 5;
 int ballDX = 1, ballDY = -1;
 
 const int joyX = A0;
-const int buzzer = 2;
+const int buzzer = 3;
 
 bool bricks[3][8];
 
