@@ -1,0 +1,86 @@
+/*
+  -------------------------------
+  قناة "الورشة" - Arduino Retro Games
+  -------------------------------
+  الكود مفتوح يمكنك نسخه وتعديله 
+  تابع القناة على يوتيوب:
+ https://www.youtube.com/@الورشة249
+
+
+  استمتع باللعب ! 🎮🔧
+*/
+#include <LedControl.h>
+
+const int DIN = 11;
+const int CS = 10;
+const int CLK = 13;
+LedControl lc = LedControl(DIN, CLK, CS, 1);
+
+const int joystickY = A1;
+const int buzzerPin = 3;
+
+int birdY = 3;
+int pipeX = 7;
+int gapY = 2;
+unsigned long lastMove = 0;
+unsigned long moveInterval = 300; // سرعة اللعبة
+bool gameOver = false;
+
+void setup() {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 8);
+  lc.clearDisplay(0);
+  pinMode(buzzerPin, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  if (gameOver) {
+    tone(buzzerPin, 200, 300);
+    delay(1000);
+    lc.clearDisplay(0);
+    birdY = 3;
+    pipeX = 7;
+    gapY = random(1, 5);
+    gameOver = false;
+    return;
+  }
+
+  if (millis() - lastMove > moveInterval) {
+    lastMove = millis();
+    lc.clearDisplay(0);
+
+    pipeX--;
+    if (pipeX < 0) {
+      pipeX = 7;
+      gapY = random(1, 6);
+    }
+
+    int joyVal = analogRead(joystickY);
+    if (joyVal < 400 && birdY > 0) {
+      birdY--;
+      tone(buzzerPin, 1000, 50); ن
+    } else if (joyVal > 600 && birdY < 7) {
+      birdY++;
+    }
+
+    
+    else if (random(0, 10) > 7 && birdY < 7) {
+      birdY++;
+    }
+
+    
+    for (int y = 0; y < 8; y++) {
+      if (y < gapY || y > gapY + 1) {
+        lc.setLed(0, y, pipeX, true);
+      }
+    }
+
+  
+    lc.setLed(0, birdY, 1, true);
+
+      if (pipeX == 1 && (birdY < gapY || birdY > gapY + 1)) {
+      gameOver = true;
+    }
+  }
+}
